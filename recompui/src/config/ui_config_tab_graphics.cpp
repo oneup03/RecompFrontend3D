@@ -15,7 +15,7 @@ namespace recompui {
         }
 
         static ultramodern::renderer::WindowMode wm_default() {
-            return is_steam_deck() ? ultramodern::renderer::WindowMode::Fullscreen : ultramodern::renderer::WindowMode::Windowed;
+            return ultramodern::renderer::WindowMode::Fullscreen;
         }
 
         using EnumOptionVector = const std::vector<recomp::config::ConfigOptionEnumOption>;
@@ -235,7 +235,10 @@ namespace recompui {
             config.add_enum_option(
                 graphics::options::res_option,
                 "Resolution",
-                "Sets the output resolution of the game. <recomp-color primary>Original</recomp-color> matches the game's original 240p resolution. <recomp-color primary>Original 2x</recomp-color> will render at 480p. <recomp-color primary>Auto</recomp-color> will scale based on the game window's resolution.",
+                "Sets the output resolution of the game. <recomp-color primary>Original</recomp-color> matches the game's original 240p resolution. <recomp-color primary>Original 2x</recomp-color> will render at 480p. <recomp-color primary>Auto</recomp-color> will scale based on the game window's resolution."
+                "<br />"
+                "<br />"
+                "<recomp-color primary>Note: Stereoscopic 3D requires Auto.</recomp-color>",
                 resolution_options,
                 ultramodern::renderer::Resolution::Auto
             );
@@ -286,7 +289,10 @@ namespace recompui {
             config.add_enum_option(
                 graphics::options::ar_option,
                 "Aspect Ratio",
-                "Sets the horizontal aspect ratio. <recomp-color primary>Original</recomp-color> uses the game's original 4:3 aspect ratio. <recomp-color primary>Expand</recomp-color> will adjust to match the game window's aspect ratio.",
+                "Sets the horizontal aspect ratio. <recomp-color primary>Original</recomp-color> uses the game's original 4:3 aspect ratio. <recomp-color primary>Expand</recomp-color> will adjust to match the game window's aspect ratio."
+                "<br />"
+                "<br />"
+                "<recomp-color primary>Note: Stereoscopic 3D requires Expand.</recomp-color>",
                 aspect_ratio_options,
                 ultramodern::renderer::AspectRatio::Expand
             );
@@ -294,7 +300,10 @@ namespace recompui {
             config.add_enum_option(
                 graphics::options::wm_option,
                 "Window Mode",
-                "Sets whether the game should display <recomp-color primary>Windowed</recomp-color> or <recomp-color primary>Fullscreen</recomp-color>. You can also use <recomp-color primary>F11</recomp-color> or <recomp-color primary>Alt + Enter</recomp-color> to toggle this option.",
+                "Sets whether the game should display <recomp-color primary>Windowed</recomp-color> or <recomp-color primary>Fullscreen</recomp-color>. You can also use <recomp-color primary>F11</recomp-color> or <recomp-color primary>Alt + Enter</recomp-color> to toggle this option."
+                "<br />"
+                "<br />"
+                "<recomp-color primary>Note: Stereoscopic 3D requires Fullscreen.</recomp-color>",
                 window_mode_options,
                 wm_default()
             );
@@ -328,15 +337,21 @@ namespace recompui {
                 "Sets the multisample anti-aliasing (MSAA) quality level. This reduces jagged edges in the final image at the expense of rendering performance."
                 "<br />"
                 "<br />"
-                "<recomp-color primary>Note: This option won't be available if your GPU does not support programmable MSAA sample positions, as it is currently required to avoid rendering glitches.</recomp-color>",
+                "<recomp-color primary>Note: This option won't be available if your GPU does not support programmable MSAA sample positions, as it is currently required to avoid rendering glitches.</recomp-color>"
+                "<br />"
+                "<br />"
+                "<recomp-color primary>Note: MSAA is not compatible with Stereoscopic 3D. Turn this off if you are using any 3D mode.</recomp-color>",
                 antialiasing_options,
-                ultramodern::renderer::Antialiasing::MSAA2X
+                ultramodern::renderer::Antialiasing::None
             );
 
             config.add_enum_option(
                 graphics::options::hr_option,
                 "HUD Placement",
-                "Adjusts the placement of HUD elements to fit the selected aspect ratio. <recomp-color primary>Expand</recomp-color> will use the aspect ratio of the game's output window.",
+                "Adjusts the placement of HUD elements to fit the selected aspect ratio. <recomp-color primary>Expand</recomp-color> will use the aspect ratio of the game's output window."
+                "<br />"
+                "<br />"
+                "<recomp-color primary>Note: Stereoscopic 3D requires 16:9.</recomp-color>",
                 hud_ratio_mode_options,
                 ultramodern::renderer::HUDRatioMode::Clamp16x9
             );
