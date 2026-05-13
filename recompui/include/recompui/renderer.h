@@ -49,6 +49,25 @@ namespace recompui {
         bool RT64SamplePositionsSupported();
         bool RT64HighPrecisionFBEnabled();
 
+        // Pushes stereoscopic 3D parameters that the active render context will pick up
+        // on its next frame. Safe to call from any thread.
+        // separation/convergence are user-facing 0..100 slider values; the render layer
+        // is responsible for mapping them to world-space units.
+        // hudDepth is 0..100 with 50 = screen plane.
+        // autoConvergence: when true, the renderer scales the configured convergence
+        // by autoConvergenceScale (0..100, applied as a fraction) during scenes the
+        // BK-side detection function flags as flat/near-camera (file select, FMVs,
+        // first-person, cutscenes, Bottles' bonus).
+        void set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t autoConvergenceScale);
+
+        // Called by the BK side (via the recomp_api bridge) once per frame to
+        // tell the renderer whether the current scene is in a "low-convergence"
+        // state (FMV, file select, first-person view, etc.). The renderer reads
+        // this on its next frame and scales the configured convergence down
+        // when set_stereo_config's autoConvergence flag is on. Safe to call
+        // from any thread.
+        void set_stereo_runtime_low_convergence(bool active);
+
         void trigger_texture_pack_update();
         void enable_texture_pack(const recomp::mods::ModContext& context, const recomp::mods::ModHandle& mod);
         void disable_texture_pack(const recomp::mods::ModHandle& mod);
