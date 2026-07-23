@@ -77,6 +77,13 @@ target_include_directories(recompui PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/util
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/RmlUi/Include
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/RmlUi/Backends
+    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/librecomp/include
+    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/N64Recomp/include
+    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/ultramodern/include
+    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/thirdparty
+    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/thirdparty/concurrentqueue
+    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/thirdparty/miniz
+    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/thirdparty/sse2neon
     ${RECOMP_FRONTEND_RT64_PATH}/include
     ${RECOMP_FRONTEND_RT64_PATH}/src/contrib
     ${RECOMP_FRONTEND_RT64_PATH}/src/contrib/hlslpp/include
@@ -86,13 +93,6 @@ target_include_directories(recompui PUBLIC
     ${RECOMP_FRONTEND_RT64_PATH}/src/render
     ${RECOMP_FRONTEND_RT64_PATH}/src/contrib/nativefiledialog-extended/src/include
     ${RECOMP_FRONTEND_RT64_PATH}/src/contrib/plume
-    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/librecomp/include
-    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/N64Recomp/include
-    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/ultramodern/include
-    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/thirdparty
-    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/thirdparty/concurrentqueue
-    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/thirdparty/miniz
-    ${RECOMP_FRONTEND_N64MODERNRUNTIME_PATH}/thirdparty/sse2neon
     ${CMAKE_BINARY_DIR}/shaders
 )
 
