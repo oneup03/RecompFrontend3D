@@ -50,7 +50,10 @@ SET(RMLUI_TESTS_ENABLED OFF CACHE BOOL "" FORCE)
 SET(LUNASVG_BUILD_STATIC ON CACHE BOOL "" FORCE)
 set(RT64_STATIC TRUE)
 set(RT64_SDL_WINDOW_VULKAN TRUE)
-add_compile_definitions(HLSL_CPU)
+add_compile_definitions(
+    HLSL_CPU
+    __PRFCHWINTRIN_H
+)
 
 add_subdirectory(lib/RmlUi)
 target_compile_definitions(rmlui_core PRIVATE LUNASVG_BUILD_STATIC)
