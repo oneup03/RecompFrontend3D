@@ -51,19 +51,24 @@ static moodycamel::ConcurrentQueue<TexturePackAction> texture_pack_action_queue;
 // Stereo state pushed by set_stereo_config() and consumed by RT64Context before
 // the RT64 application advances a frame. Packed into a single atomic<uint64_t>
 // so all four values land coherently without a mutex.
-//   bits [15:0]  separation slider (0..100)
-//   bits [31:16] convergence slider (1..100)
+//   bits [15:0]  separation slider (0..50)
+//   bits [31:16] convergence slider in tenths (1..500)
 //   bits [47:32] mode (StereoMode enum value)
 //   bits [63:48] HUD depth slider (0..100)
 static std::atomic<uint64_t> stereo_config_packed{0};
 
-// Auto-convergence pair packed into a second atomic. Kept separate so the
-// existing four-field uint64 doesn't need repacking and so the runtime flag
-// (which the BK side toggles per scene) can change at any frame without
+// Everything that didn't fit the four-field uint64 above, packed into a second
+// atomic. Kept separate so that one doesn't need repacking and so the runtime
+// flag (which the BK side toggles per scene) can change at any frame without
 // touching the user's configured values.
-//   bits [7:0]  autoConvergenceScale slider (0..100)
-//   bits [8]    autoConvergence on/off
-static std::atomic<uint32_t> stereo_auto_packed{0};
+//   bits [7:0]   autoConvergenceScale slider (0..100)
+//   bits [8]     autoConvergence on/off
+//   bits [16:9]  ghostContrast slider (0..100, 100 = off)
+//   bits [24:17] ghostBlackFloor slider (0..100, 0 = off)
+// Initialised with ghostContrast = 100 (the no-op) rather than an all-zero
+// word: a zero contrast field would decode as a full squeeze to mid-grey if
+// anything read this before the host pushed its first configuration.
+static std::atomic<uint32_t> stereo_auto_packed{100u << 9};
 
 // Set by the BK side once per frame via recomp_stereo_set_low_convergence_scene.
 // True when the current scene matches one of the detection patterns
@@ -418,6 +423,8 @@ static void apply_pending_stereo_config(RT64::Application *app) {
     app->userConfig.stereoSeparation = separation;
     app->userConfig.stereoConvergence = effectiveConvergence;
     app->userConfig.stereoHudDepth = hudDepth;
+    app->userConfig.stereoGhostContrast = (autoPacked >> 9) & 0xFFu;
+    app->userConfig.stereoGhostBlackFloor = (autoPacked >> 17) & 0xFFu;
     // Propagate into sharedQueueResources->userConfig so the workload and present
     // threads see the new values. discardFBs=false: stereo doesn't change render
     // target resolution or framebuffer layout.
@@ -595,13 +602,17 @@ bool renderer::RT64HighPrecisionFBEnabled() {
     return high_precision_fb_enabled;
 }
 
-void renderer::set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t autoConvergenceScale) {
-    separation = std::clamp<uint32_t>(separation, 0, 100);
-    convergence = std::clamp<uint32_t>(convergence, 1, 100);
+void renderer::set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t autoConvergenceScale, uint32_t ghostContrast, uint32_t ghostBlackFloor) {
+    separation = std::clamp<uint32_t>(separation, 0, 50);
+    // Tenths of a convergence slider unit: 1 = 0.1, 500 = 50.
+    convergence = std::clamp<uint32_t>(convergence, 1, 500);
     hudDepth = std::clamp<uint32_t>(hudDepth, 0, 100);
     autoConvergenceScale = std::clamp<uint32_t>(autoConvergenceScale, 0, 100);
+    ghostContrast = std::clamp<uint32_t>(ghostContrast, 0, 100);
+    ghostBlackFloor = std::clamp<uint32_t>(ghostBlackFloor, 0, 100);
     stereo_config_packed.store(pack_stereo_config(mode, separation, convergence, hudDepth), std::memory_order_relaxed);
-    const uint32_t autoPacked = (autoConvergence ? (1u << 8) : 0u) | (autoConvergenceScale & 0xFFu);
+    const uint32_t autoPacked = (autoConvergence ? (1u << 8) : 0u) | (autoConvergenceScale & 0xFFu) |
+        ((ghostContrast & 0xFFu) << 9) | ((ghostBlackFloor & 0xFFu) << 17);
     stereo_auto_packed.store(autoPacked, std::memory_order_relaxed);
 }
 

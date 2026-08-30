@@ -51,14 +51,22 @@ namespace recompui {
 
         // Pushes stereoscopic 3D parameters that the active render context will pick up
         // on its next frame. Safe to call from any thread.
-        // separation/convergence are user-facing 0..100 slider values; the render layer
-        // is responsible for mapping them to world-space units.
+        // separation is the user-facing 0..50 slider value. convergence arrives in
+        // TENTHS of its 0.1..50 slider (so 1..500), because that slider steps in
+        // tenths below 1 and the bridge below is integer-only. The render layer
+        // maps both to world-space units.
         // hudDepth is 0..100 with 50 = screen plane.
         // autoConvergence: when true, the renderer scales the configured convergence
         // by autoConvergenceScale (0..100, applied as a fraction) during scenes the
         // BK-side detection function flags as flat/near-camera (file select, FMVs,
         // first-person, cutscenes, Bottles' bonus).
-        void set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t autoConvergenceScale);
+        // ghostContrast (0..100, 100 = off) and ghostBlackFloor (0..100,
+        // 0 = off) drive the compose shader's anti-crosstalk range compression:
+        // squeezing the signal range shrinks the brightness difference between
+        // the eyes, which is what makes a display's crosstalk visible, and the
+        // black floor gives a cancelling display's subtraction room before it
+        // clips at zero.
+        void set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t autoConvergenceScale, uint32_t ghostContrast, uint32_t ghostBlackFloor);
 
         // Called by the BK side (via the recomp_api bridge) once per frame to
         // tell the renderer whether the current scene is in a "low-convergence"
