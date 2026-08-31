@@ -410,21 +410,32 @@ static void apply_pending_stereo_config(RT64::Application *app) {
     unpack_stereo_config(packed, mode, separation, convergence, hudDepth);
 
     const bool autoConvergence = (autoPacked & (1u << 8)) != 0u;
-    const uint32_t autoConvergenceScale = autoPacked & 0xFFu;
-    uint32_t effectiveConvergence = convergence;
-    if (autoConvergence && runtimeLowConv) {
-        // Round to nearest. Clamp to >=1 so downstream code that divides by
-        // convergence can't blow up.
-        const uint32_t scaled = (convergence * autoConvergenceScale + 50u) / 100u;
-        effectiveConvergence = std::max<uint32_t>(1u, scaled);
-    }
 
+    // Auto-convergence is now entirely the renderer's depth-driven control loop
+    // (dynamic3d 4.3), which measures the nearest on-screen geometry directly.
+    // The scene classification the game pushes through
+    // set_stereo_runtime_low_convergence used to scale convergence here by a
+    // fixed percentage; that was an approximation standing in for a depth
+    // measurement, and running both compounded - the loop saw an already-scaled
+    // ceiling that moved whenever a cutscene or menu toggled the classification,
+    // and chased it instead of the scene.
+    //
+    // runtimeLowConv is still read above, because it takes part in the composite
+    // key that decides whether the configuration needs pushing at all.
     app->userConfig.stereoMode = mode;
     app->userConfig.stereoSeparation = separation;
-    app->userConfig.stereoConvergence = effectiveConvergence;
+    app->userConfig.stereoConvergence = convergence;
     app->userConfig.stereoHudDepth = hudDepth;
     app->userConfig.stereoGhostContrast = (autoPacked >> 9) & 0xFFu;
     app->userConfig.stereoGhostBlackFloor = (autoPacked >> 17) & 0xFFu;
+    app->userConfig.stereoAutoConvergence = autoConvergence ? 1u : 0u;
+    app->userConfig.stereoConvergenceManual = convergence;
+    // The packed slot is 8 unsigned bits and the comfort target is signed, so it
+    // travels biased by +50 and is un-biased here.
+    app->userConfig.stereoComfortTarget = int32_t(autoPacked & 0xFFu) - 50;
+    // The scene classification still contributes - as a tightener on the loop's
+    // comfort budget, not as a competing scaler on convergence itself.
+    app->userConfig.stereoSceneLowConvergence = runtimeLowConv ? 1u : 0u;
     // Propagate into sharedQueueResources->userConfig so the workload and present
     // threads see the new values. discardFBs=false: stereo doesn't change render
     // target resolution or framebuffer layout.
