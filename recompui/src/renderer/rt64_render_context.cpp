@@ -78,6 +78,12 @@ static std::atomic<uint32_t> stereo_auto_packed{100u << 9};
 // see no behavior change until they opt in.
 static std::atomic<bool> stereo_runtime_low_convergence{false};
 
+// Set by the game side once per frame via recomp_stereo_set_first_person. True
+// only while the first-person camera is live. The renderer's reticle search is
+// geometric, and menu and transition art matches the same description, so this
+// is what confines that search to frames where a reticle actually exists.
+static std::atomic<bool> stereo_runtime_first_person{false};
+
 static uint64_t pack_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth) {
     return (static_cast<uint64_t>(hudDepth & 0xFFFFu) << 48) |
            (static_cast<uint64_t>(static_cast<uint32_t>(mode) & 0xFFFFu) << 32) |
@@ -391,6 +397,7 @@ static void apply_pending_stereo_config(RT64::Application *app) {
     const uint64_t packed = stereo_config_packed.load(std::memory_order_relaxed);
     const uint32_t autoPacked = stereo_auto_packed.load(std::memory_order_relaxed);
     const bool runtimeLowConv = stereo_runtime_low_convergence.load(std::memory_order_relaxed);
+    const bool runtimeFirstPerson = stereo_runtime_first_person.load(std::memory_order_relaxed);
 
     // Fold all three inputs into a single composite key so the existing
     // "skip duplicate pushes" optimization still works. The auto-convergence
@@ -399,7 +406,8 @@ static void apply_pending_stereo_config(RT64::Application *app) {
     // to detect those transitions too.
     const uint64_t compositeKey = packed
         ^ (static_cast<uint64_t>(autoPacked) << 1)
-        ^ (runtimeLowConv ? 0xA55A5AA5ull : 0ull);
+        ^ (runtimeLowConv ? 0xA55A5AA5ull : 0ull)
+        ^ (runtimeFirstPerson ? 0x5AA5A55Aull : 0ull);
     if (compositeKey == stereo_config_last_applied.load(std::memory_order_relaxed)) {
         return;
     }
@@ -436,6 +444,7 @@ static void apply_pending_stereo_config(RT64::Application *app) {
     // The scene classification still contributes - as a tightener on the loop's
     // comfort budget, not as a competing scaler on convergence itself.
     app->userConfig.stereoSceneLowConvergence = runtimeLowConv ? 1u : 0u;
+    app->userConfig.stereoSceneFirstPerson = runtimeFirstPerson ? 1u : 0u;
     // Propagate into sharedQueueResources->userConfig so the workload and present
     // threads see the new values. discardFBs=false: stereo doesn't change render
     // target resolution or framebuffer layout.
@@ -625,6 +634,10 @@ void renderer::set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint3
     const uint32_t autoPacked = (autoConvergence ? (1u << 8) : 0u) | (autoConvergenceScale & 0xFFu) |
         ((ghostContrast & 0xFFu) << 9) | ((ghostBlackFloor & 0xFFu) << 17);
     stereo_auto_packed.store(autoPacked, std::memory_order_relaxed);
+}
+
+void renderer::set_stereo_runtime_first_person(bool active) {
+    stereo_runtime_first_person.store(active, std::memory_order_relaxed);
 }
 
 void renderer::set_stereo_runtime_low_convergence(bool active) {
