@@ -76,6 +76,12 @@ namespace recompui {
         // from any thread.
         void set_stereo_runtime_low_convergence(bool active);
 
+        // Called once per frame by the game to say whether the first-person
+        // camera is live, and so whether the aiming reticle is on screen. The
+        // renderer gates its reticle search on this. Safe to call from any
+        // thread.
+        void set_stereo_runtime_first_person(bool active);
+
         void trigger_texture_pack_update();
         void enable_texture_pack(const recomp::mods::ModContext& context, const recomp::mods::ModHandle& mod);
         void disable_texture_pack(const recomp::mods::ModHandle& mod);
