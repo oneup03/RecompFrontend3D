@@ -52,7 +52,7 @@ static moodycamel::ConcurrentQueue<TexturePackAction> texture_pack_action_queue;
 // the RT64 application advances a frame. Packed into a single atomic<uint64_t>
 // so all four values land coherently without a mutex.
 //   bits [15:0]  separation slider (0..50)
-//   bits [31:16] convergence slider in tenths (1..500)
+//   bits [31:16] convergence slider in hundredths (10..2000)
 //   bits [47:32] mode (StereoMode enum value)
 //   bits [63:48] HUD depth slider (0..100)
 static std::atomic<uint64_t> stereo_config_packed{0};
@@ -223,7 +223,12 @@ void set_application_user_config(RT64::Application* application, const ultramode
     }
 
     application->userConfig.aspectRatio = to_rt64(config.ar_option);
-    application->userConfig.antialiasing = to_rt64(config.msaa_option);
+    // Forced off, not taken from the config. MSAA is mutually exclusive with
+    // stereo - the right-eye override target is MSAA-gated, so with both on the
+    // right eye never renders - and this is the single point every path reaches
+    // RT64 through, so pinning it here is what actually guarantees it whatever a
+    // stale config file or another caller asks for.
+    application->userConfig.antialiasing = RT64::UserConfiguration::Antialiasing::None;
     application->userConfig.refreshRate = to_rt64(config.rr_option);
     application->userConfig.refreshRateTarget = config.rr_manual_value;
     application->userConfig.internalColorFormat = to_rt64(config.hpfb_option);
@@ -381,7 +386,6 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
         sample_positions_supported = false;
     }
 
-    recompui::config::graphics::update_msaa_supported(sample_positions_supported);
 
     high_precision_fb_enabled = app->shaderLibrary->usesHDR;
 }
@@ -624,8 +628,13 @@ bool renderer::RT64HighPrecisionFBEnabled() {
 
 void renderer::set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t autoConvergenceScale, uint32_t ghostContrast, uint32_t ghostBlackFloor) {
     separation = std::clamp<uint32_t>(separation, 0, 50);
-    // Tenths of a convergence slider unit: 1 = 0.1, 500 = 50.
-    convergence = std::clamp<uint32_t>(convergence, 1, 500);
+    // Hundredths of a convergence slider unit: 10 = 0.1, 2000 = 20.
+    //
+    // The extra digit over the tenths this used to take exists for the
+    // renderer's auto-convergence loop, not for the slider -- see the note on
+    // set_stereo_config in renderer.h. 2000 still leaves most of the 16-bit
+    // field above spare.
+    convergence = std::clamp<uint32_t>(convergence, 10, 2000);
     hudDepth = std::clamp<uint32_t>(hudDepth, 0, 100);
     autoConvergenceScale = std::clamp<uint32_t>(autoConvergenceScale, 0, 100);
     ghostContrast = std::clamp<uint32_t>(ghostContrast, 0, 100);

@@ -56,14 +56,12 @@ namespace recompui {
                 inline const std::string hr_option = "hr_option";
                 inline const std::string api_option = "api_option";
                 inline const std::string ar_option = "ar_option";
-                inline const std::string msaa_option = "msaa_option";
                 inline const std::string rr_option = "rr_option";
                 inline const std::string hpfb_option = "hpfb_option";
                 inline const std::string rr_manual_value = "rr_manual_value";
                 inline const std::string ds_option = "ds_option";
             }
     
-            void update_msaa_supported(bool supported);
             void update_refresh_rate(uint32_t refresh_rate);
             void toggle_fullscreen();
         }

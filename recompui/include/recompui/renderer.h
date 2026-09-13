@@ -52,9 +52,17 @@ namespace recompui {
         // Pushes stereoscopic 3D parameters that the active render context will pick up
         // on its next frame. Safe to call from any thread.
         // separation is the user-facing 0..50 slider value. convergence arrives in
-        // TENTHS of its 0.1..50 slider (so 1..500), because that slider steps in
-        // tenths below 1 and the bridge below is integer-only. The render layer
-        // maps both to world-space units.
+        // HUNDREDTHS of its 0.1..20 slider (so 10..2000), because the bridge below
+        // is integer-only. The render layer maps both to world-space units.
+        //
+        // Hundredths rather than the tenths this used to carry. The slider itself
+        // only steps in tenths, so the extra digit is not for the user: it is for
+        // the renderer's depth-driven auto-convergence, whose solve is continuous
+        // and gets quantised on the way back through here. A tenth of a slider
+        // unit is 2 world units, and at the close convergences the loop pulls to
+        // that is a step of several percent -- enough to read as the image
+        // jumping rather than easing. A hundredth is 0.2 world units, which is
+        // below a pixel of disparity at any separation.
         // hudDepth is 0..100 with 50 = screen plane.
         // autoConvergence: when true, the renderer scales the configured convergence
         // by autoConvergenceScale (0..100, applied as a fraction) during scenes the
