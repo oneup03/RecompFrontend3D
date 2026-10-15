@@ -56,25 +56,19 @@ namespace recompui {
         // tenths below 1 and the bridge below is integer-only. The render layer
         // maps both to world-space units.
         // hudDepth is 0..100 with 50 = screen plane.
-        // autoConvergence: when true, the renderer scales the configured convergence
-        // by autoConvergenceScale (0..100, applied as a fraction) during scenes the
-        // BK-side detection function flags as flat/near-camera (file select, FMVs,
-        // first-person, cutscenes, Bottles' bonus).
+        // autoConvergence: when true, the renderer's depth-driven loop measures the
+        // nearest on-screen geometry each frame and pulls convergence in when it
+        // would pop out past the comfort budget; the convergence slider stays the
+        // ceiling. comfortTargetBiased is that budget, the permitted pop-out in
+        // thousandths of screen width (-50..60, signed: negative keeps the whole
+        // scene behind the screen), biased by +50 so it travels unsigned.
         // ghostContrast (0..100, 100 = off) and ghostBlackFloor (0..100,
         // 0 = off) drive the compose shader's anti-crosstalk range compression:
         // squeezing the signal range shrinks the brightness difference between
         // the eyes, which is what makes a display's crosstalk visible, and the
         // black floor gives a cancelling display's subtraction room before it
         // clips at zero.
-        void set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t autoConvergenceScale, uint32_t ghostContrast, uint32_t ghostBlackFloor);
-
-        // Called by the BK side (via the recomp_api bridge) once per frame to
-        // tell the renderer whether the current scene is in a "low-convergence"
-        // state (FMV, file select, first-person view, etc.). The renderer reads
-        // this on its next frame and scales the configured convergence down
-        // when set_stereo_config's autoConvergence flag is on. Safe to call
-        // from any thread.
-        void set_stereo_runtime_low_convergence(bool active);
+        void set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t comfortTargetBiased, uint32_t ghostContrast, uint32_t ghostBlackFloor);
 
         void trigger_texture_pack_update();
         void enable_texture_pack(const recomp::mods::ModContext& context, const recomp::mods::ModHandle& mod);

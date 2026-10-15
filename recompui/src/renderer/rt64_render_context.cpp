@@ -61,22 +61,15 @@ static std::atomic<uint64_t> stereo_config_packed{0};
 // atomic. Kept separate so that one doesn't need repacking and so the runtime
 // flag (which the BK side toggles per scene) can change at any frame without
 // touching the user's configured values.
-//   bits [7:0]   autoConvergenceScale slider (0..100)
+//   bits [7:0]   comfort target, -50..60 biased by +50
 //   bits [8]     autoConvergence on/off
 //   bits [16:9]  ghostContrast slider (0..100, 100 = off)
 //   bits [24:17] ghostBlackFloor slider (0..100, 0 = off)
-// Initialised with ghostContrast = 100 (the no-op) rather than an all-zero
-// word: a zero contrast field would decode as a full squeeze to mid-grey if
+// Initialised with ghostContrast = 100 (the no-op) and the comfort target at
+// 0 (biased 50) rather than an all-zero word: a zero contrast field would
+// decode as a full squeeze to mid-grey, and a zero comfort byte as -50, if
 // anything read this before the host pushed its first configuration.
-static std::atomic<uint32_t> stereo_auto_packed{100u << 9};
-
-// Set by the BK side once per frame via recomp_stereo_set_low_convergence_scene.
-// True when the current scene matches one of the detection patterns
-// (FMV / file select / Bottles bonus / first-person view). The renderer scales
-// userConfig.stereoConvergence down by auto_packed's scale when this is true
-// AND auto_packed's enable bit is set. Defaults to false so existing users
-// see no behavior change until they opt in.
-static std::atomic<bool> stereo_runtime_low_convergence{false};
+static std::atomic<uint32_t> stereo_auto_packed{(100u << 9) | 50u};
 
 static uint64_t pack_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth) {
     return (static_cast<uint64_t>(hudDepth & 0xFFFFu) << 48) |
@@ -390,16 +383,11 @@ static void apply_pending_stereo_config(RT64::Application *app) {
     }
     const uint64_t packed = stereo_config_packed.load(std::memory_order_relaxed);
     const uint32_t autoPacked = stereo_auto_packed.load(std::memory_order_relaxed);
-    const bool runtimeLowConv = stereo_runtime_low_convergence.load(std::memory_order_relaxed);
 
-    // Fold all three inputs into a single composite key so the existing
-    // "skip duplicate pushes" optimization still works. The auto-convergence
-    // value can change frame-to-frame independently of the user's config
-    // (e.g. as the player walks in and out of first-person view), so we have
-    // to detect those transitions too.
+    // Fold both inputs into a single composite key so the existing "skip
+    // duplicate pushes" optimization still works.
     const uint64_t compositeKey = packed
-        ^ (static_cast<uint64_t>(autoPacked) << 1)
-        ^ (runtimeLowConv ? 0xA55A5AA5ull : 0ull);
+        ^ (static_cast<uint64_t>(autoPacked) << 1);
     if (compositeKey == stereo_config_last_applied.load(std::memory_order_relaxed)) {
         return;
     }
@@ -410,21 +398,23 @@ static void apply_pending_stereo_config(RT64::Application *app) {
     unpack_stereo_config(packed, mode, separation, convergence, hudDepth);
 
     const bool autoConvergence = (autoPacked & (1u << 8)) != 0u;
-    const uint32_t autoConvergenceScale = autoPacked & 0xFFu;
-    uint32_t effectiveConvergence = convergence;
-    if (autoConvergence && runtimeLowConv) {
-        // Round to nearest. Clamp to >=1 so downstream code that divides by
-        // convergence can't blow up.
-        const uint32_t scaled = (convergence * autoConvergenceScale + 50u) / 100u;
-        effectiveConvergence = std::max<uint32_t>(1u, scaled);
-    }
 
+    // Auto-convergence is entirely the renderer's depth-driven control loop
+    // (dynamic3d 4.3), which measures the nearest on-screen geometry directly.
+    // It replaced a scene classification the game pushed each frame, which
+    // scaled convergence here by a fixed percentage in menus, cutscenes and
+    // first person: an approximation standing in for a depth measurement.
     app->userConfig.stereoMode = mode;
     app->userConfig.stereoSeparation = separation;
-    app->userConfig.stereoConvergence = effectiveConvergence;
+    app->userConfig.stereoConvergence = convergence;
     app->userConfig.stereoHudDepth = hudDepth;
     app->userConfig.stereoGhostContrast = (autoPacked >> 9) & 0xFFu;
     app->userConfig.stereoGhostBlackFloor = (autoPacked >> 17) & 0xFFu;
+    app->userConfig.stereoAutoConvergence = autoConvergence ? 1u : 0u;
+    app->userConfig.stereoConvergenceManual = convergence;
+    // The packed slot is 8 unsigned bits and the comfort target is signed, so it
+    // travels biased by +50 and is un-biased here.
+    app->userConfig.stereoComfortTarget = int32_t(autoPacked & 0xFFu) - 50;
     // Propagate into sharedQueueResources->userConfig so the workload and present
     // threads see the new values. discardFBs=false: stereo doesn't change render
     // target resolution or framebuffer layout.
@@ -602,22 +592,19 @@ bool renderer::RT64HighPrecisionFBEnabled() {
     return high_precision_fb_enabled;
 }
 
-void renderer::set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t autoConvergenceScale, uint32_t ghostContrast, uint32_t ghostBlackFloor) {
+void renderer::set_stereo_config(RT64::UserConfiguration::StereoMode mode, uint32_t separation, uint32_t convergence, uint32_t hudDepth, bool autoConvergence, uint32_t comfortTargetBiased, uint32_t ghostContrast, uint32_t ghostBlackFloor) {
     separation = std::clamp<uint32_t>(separation, 0, 50);
     // Tenths of a convergence slider unit: 1 = 0.1, 500 = 50.
     convergence = std::clamp<uint32_t>(convergence, 1, 500);
     hudDepth = std::clamp<uint32_t>(hudDepth, 0, 100);
-    autoConvergenceScale = std::clamp<uint32_t>(autoConvergenceScale, 0, 100);
+    // The comfort target, -50..60 biased by +50 (see renderer.h).
+    comfortTargetBiased = std::clamp<uint32_t>(comfortTargetBiased, 0, 110);
     ghostContrast = std::clamp<uint32_t>(ghostContrast, 0, 100);
     ghostBlackFloor = std::clamp<uint32_t>(ghostBlackFloor, 0, 100);
     stereo_config_packed.store(pack_stereo_config(mode, separation, convergence, hudDepth), std::memory_order_relaxed);
-    const uint32_t autoPacked = (autoConvergence ? (1u << 8) : 0u) | (autoConvergenceScale & 0xFFu) |
+    const uint32_t autoPacked = (autoConvergence ? (1u << 8) : 0u) | (comfortTargetBiased & 0xFFu) |
         ((ghostContrast & 0xFFu) << 9) | ((ghostBlackFloor & 0xFFu) << 17);
     stereo_auto_packed.store(autoPacked, std::memory_order_relaxed);
-}
-
-void renderer::set_stereo_runtime_low_convergence(bool active) {
-    stereo_runtime_low_convergence.store(active, std::memory_order_relaxed);
 }
 
 void renderer::trigger_texture_pack_update() {
