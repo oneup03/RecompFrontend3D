@@ -70,13 +70,6 @@ namespace recompui {
             // {ultramodern::renderer::AspectRatio::Manual, "Manual"},
         };
 
-        static EnumOptionVector antialiasing_options = {
-            {ultramodern::renderer::Antialiasing::None, "None"},
-            {ultramodern::renderer::Antialiasing::MSAA2X, "MSAA2X", "2X"},
-            {ultramodern::renderer::Antialiasing::MSAA4X, "MSAA4X", "4X"},
-            // {ultramodern::renderer::Antialiasing::MSAA8X, "MSAA8X"},
-        };
-
         static EnumOptionVector refresh_rate_options = {
             {ultramodern::renderer::RefreshRate::Original, "Original"},
             {ultramodern::renderer::RefreshRate::Display, "Display"},
@@ -170,7 +163,10 @@ namespace recompui {
             new_config.hr_option = get_graphics_enum_value<ultramodern::renderer::HUDRatioMode>(graphics::options::hr_option);
             new_config.api_option = get_graphics_enum_value<ultramodern::renderer::GraphicsApi>(graphics::options::api_option);
             new_config.ar_option = get_graphics_enum_value<ultramodern::renderer::AspectRatio>(graphics::options::ar_option);
-            new_config.msaa_option = get_graphics_enum_value<ultramodern::renderer::Antialiasing>(graphics::options::msaa_option);
+            // MSAA is forced off and has no option; see the note at the
+            // registration site below. Set explicitly rather than left to the
+            // struct's default so the intent is visible here too.
+            new_config.msaa_option = ultramodern::renderer::Antialiasing::None;
             new_config.rr_option = get_graphics_enum_value<ultramodern::renderer::RefreshRate>(graphics::options::rr_option);
             new_config.hpfb_option = get_graphics_enum_value<ultramodern::renderer::HighPrecisionFramebuffer>(graphics::options::hpfb_option);
             new_config.rr_manual_value = get_graphics_number_value<int>(graphics::options::rr_manual_value);
@@ -178,28 +174,6 @@ namespace recompui {
             new_config.ds_option = get_graphics_enum_value<int>(graphics::options::ds_option);
 
             ultramodern::renderer::set_graphics_config(new_config);
-        }
-
-        void graphics::update_msaa_supported(bool supported) {
-            recomp::config::Config &config = get_graphics_config();
-            if (!supported) {
-                config.update_option_enum_details(
-                    graphics::options::msaa_option,
-                    supported ? "Available" : "Not available (missing sample positions support)"
-                );
-                config.update_option_disabled(
-                    graphics::options::msaa_option,
-                    true
-                );
-            } else {
-                auto max_msaa = recompui::renderer::RT64MaxMSAA();
-                if (max_msaa < RT64::UserConfiguration::Antialiasing::MSAA2X) {
-                    config.update_enum_option_disabled(graphics::options::msaa_option, static_cast<uint32_t>(ultramodern::renderer::Antialiasing::MSAA2X), true);
-                }
-                if (max_msaa < RT64::UserConfiguration::Antialiasing::MSAA4X) {
-                    config.update_enum_option_disabled(graphics::options::msaa_option, static_cast<uint32_t>(ultramodern::renderer::Antialiasing::MSAA4X), true);
-                }
-            }
         }
 
         void graphics::update_refresh_rate(uint32_t refresh_rate) {
@@ -331,19 +305,19 @@ namespace recompui {
                 );
             }
 
-            config.add_enum_option(
-                graphics::options::msaa_option,
-                "MS Anti-Aliasing",
-                "Sets the multisample anti-aliasing (MSAA) quality level. This reduces jagged edges in the final image at the expense of rendering performance."
-                "<br />"
-                "<br />"
-                "<recomp-color primary>Note: This option won't be available if your GPU does not support programmable MSAA sample positions, as it is currently required to avoid rendering glitches.</recomp-color>"
-                "<br />"
-                "<br />"
-                "<recomp-color primary>Note: MSAA is not compatible with Stereoscopic 3D. Turn this off if you are using any 3D mode.</recomp-color>",
-                antialiasing_options,
-                ultramodern::renderer::Antialiasing::None
-            );
+            // NO MSAA OPTION. MSAA and stereo are mutually exclusive here:
+            // RT64 redirects the right-eye pass to an override render target and
+            // that redirection is itself MSAA-gated, so with both on the right
+            // eye never renders at all. An option that has to be off for the
+            // feature this port exists for is not worth carrying, and greying it
+            // out cost the graphics tab a working gamepad path through the rows
+            // below it.
+            //
+            // Not read back from the config file either. Configs written before
+            // the option was removed still carry MSAA2X, and honouring that would
+            // silently re-enable it for exactly the users who already had it on -
+            // so the key is gone from the options namespace and the value is
+            // pinned in apply_graphics_config above.
 
             config.add_enum_option(
                 graphics::options::hr_option,

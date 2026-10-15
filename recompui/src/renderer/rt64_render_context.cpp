@@ -210,7 +210,13 @@ void set_application_user_config(RT64::Application* application, const ultramode
     }
 
     application->userConfig.aspectRatio = to_rt64(config.ar_option);
-    application->userConfig.antialiasing = to_rt64(config.msaa_option);
+    // Forced off, not taken from the config. MSAA is mutually exclusive with
+    // stereo - the right-eye override target is MSAA-gated, so with both on the
+    // right eye never renders - and the depth-driven auto-convergence sampler
+    // skips multisampled targets. This is the single point every path reaches
+    // RT64 through, so pinning it here is what actually guarantees it whatever
+    // a stale config file or another caller asks for.
+    application->userConfig.antialiasing = RT64::UserConfiguration::Antialiasing::None;
     application->userConfig.refreshRate = to_rt64(config.rr_option);
     application->userConfig.refreshRateTarget = config.rr_manual_value;
     application->userConfig.internalColorFormat = to_rt64(config.hpfb_option);
@@ -368,7 +374,6 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
         sample_positions_supported = false;
     }
 
-    recompui::config::graphics::update_msaa_supported(sample_positions_supported);
 
     high_precision_fb_enabled = app->shaderLibrary->usesHDR;
 }
